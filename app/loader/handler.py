@@ -16,16 +16,19 @@ DB_PASS = os.environ["DB_PASS"]
 
 s3 = boto3.client("s3")
 
+
 def _connect():
     return psycopg2.connect(
         host=DB_HOST, port=DB_PORT, dbname=DB_NAME,
         user=DB_USER, password=DB_PASS, sslmode="require"
     )
 
+
 def _ensure_postgis(conn):
     with conn.cursor() as cur:
         cur.execute("CREATE EXTENSION IF NOT EXISTS postgis;")
     conn.commit()
+
 
 def _ensure_table(conn):
     with conn.cursor() as cur:
@@ -38,6 +41,7 @@ def _ensure_table(conn):
         );
         """)
     conn.commit()
+
 
 def _load_geojson_to_db(conn, gj):
     feats = []
@@ -53,7 +57,7 @@ def _load_geojson_to_db(conn, gj):
         for f in feats:
             geom = f.get("geometry")
             props = f.get("properties", {})
-            name  = props.get("name") or f.get("id") or "unnamed"
+            name = props.get("name") or f.get("id") or "unnamed"
             if not geom or "type" not in geom or "coordinates" not in geom:
                 logger.warning("Skipping invalid/empty geometry")
                 continue
@@ -68,11 +72,12 @@ def _load_geojson_to_db(conn, gj):
     conn.commit()
     return inserted
 
+
 def lambda_handler(event, context):
     logger.info("Event: %s", json.dumps(event))
     for rec in event.get("Records", []):
         bucket = rec["s3"]["bucket"]["name"]
-        key    = rec["s3"]["object"]["key"]
+        key = rec["s3"]["object"]["key"]
         if not key.endswith(".geojson"):
             logger.info("Skipping non-geojson key: %s", key)
             continue
@@ -89,7 +94,11 @@ def lambda_handler(event, context):
             _ensure_postgis(conn)
             _ensure_table(conn)
             inserted = _load_geojson_to_db(conn, gj)
-            logger.info("Inserted %d features from s3://%s/%s", inserted, bucket, key)
+            logger.info(
+                "Inserted %d features from s3://%s/%s",
+                inserted,
+                bucket,
+                key)
         finally:
             conn.close()
 
